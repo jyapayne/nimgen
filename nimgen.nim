@@ -53,10 +53,12 @@ proc execProc(cmd: string): string =
 
   var x = p.peekExitCode()
   if x != 0:
-    echo "Command failed: " & $x
-    echo cmd
-    echo result
-    quit(1)
+    raise newException(
+      Exception,
+      "Command failed: " & $x &
+      "\nCMD: " & $cmd &
+      "\nRESULT: " & $result
+    )
 
 proc extractZip(zipfile: string) =
   var cmd = "unzip -o $#"
@@ -129,9 +131,7 @@ proc doCopy(flist: string) =
   for pair in flist.split(","):
     let spl = pair.split("=")
     if spl.len() != 2:
-      echo "Bad copy syntax: " & flist
-      quit(1)
-
+      raise newException(Exception, "Bad copy syntax: " & flist)
     let
       lfile = spl[0].strip()
       rfile = spl[1].strip()
@@ -193,8 +193,7 @@ proc search(file: string): string =
         found = true
         break
     if not found:
-      echo "File doesn't exist: " & file
-      quit(1)
+      raise newException(Exception, "File doesn't exist: " & file)
 
   # Only keep relative directory
   result = result.replace(gProjectDir & $DirSep, "")
@@ -306,9 +305,7 @@ proc rename(file: string, renfile: string) =
     for entry in matches[1].split(","):
       let spl = entry.split("=")
       if spl.len() != 2:
-        echo "Bad replace syntax: " & renfile
-        quit(1)
-
+        raise newException(Exception, "Bad replace syntax: " & renfile)
       let
         srch = spl[0].strip()
         repl = spl[1].strip()
@@ -694,9 +691,7 @@ proc runFile(file: string, cfgin: OrderedTableRef) =
         c2nimConfig.ppflags = cfg[act]
 
     if c2nimConfig.recurse and c2nimConfig.inline:
-      echo "Cannot use recurse and inline simultaneously"
-      quit(1)
-
+      raise newException(Exception, "Cannot use recurse and inline simultaneously")
     if not noprocess:
       let nimFile = getNimout(sfile)
       c2nim(file, nimFile, c2nimConfig)
@@ -705,8 +700,7 @@ proc runFile(file: string, cfgin: OrderedTableRef) =
 
 proc runCfg(cfg: string) =
   if not fileExists(cfg):
-    echo "Config doesn't exist: " & cfg
-    quit(1)
+    raise newException(Exception, "Config doesn't exist: " & cfg)
 
   gConfig = loadConfig(cfg)
 
@@ -718,15 +712,13 @@ proc runCfg(cfg: string) =
           try:
             removeDir(gOutput)
           except OSError:
-            echo "Directory in use: " & gOutput
-            quit(1)
+            raise newException(Exception, "Directory in use: " & gOutput)
         else:
           for f in walkFiles(gOutput/"*.nim"):
             try:
               removeFile(f)
             except OSError:
-              echo "Unable to delete: " & f
-              quit(1)
+              raise newException(Exception, "Unable to delete: " & f)
       createDir(gOutput)
 
     if gConfig["n.global"].hasKey("cpp_compiler"):
