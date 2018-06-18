@@ -501,13 +501,14 @@ proc c2nim(fl, outfile: string, c2nimConfig: c2nimConfigObj) =
     outpragma = ""
 
   passC = "import strutils\n"
-  for inc in gIncludes:
-    passC &= ("""{.passC: "-I\"" & gorge("nimble path $#").strip() & "/$#\"".}""" % [gOutput, inc]) & "\n"
+  passC &= "import ospaths\n"
 
   for prag in c2nimConfig.pragma:
     outpragma &= "{." & prag & ".}\n"
 
   let fname = file.splitFile().name.replace(re"[\.\-]", "_")
+  let fincl = file.replace(gOutput, "")
+
   if c2nimConfig.dynlib.len() != 0:
     let
       win = "when defined(Windows):\n"
@@ -537,7 +538,10 @@ proc c2nim(fl, outfile: string, c2nimConfig: c2nimConfigObj) =
     if outlib != "":
       extflags &= " --dynlib:dynlib$#" % fname
   else:
-    passC &= "const header$# = \"$#\"\n" % [fname, fl]
+    if file.isAbsolute():
+      passC &= "const header$# = \"$#\"\n" % [fname, fincl]
+    else:
+      passC &= "const header$# = currentSourcePath().splitPath().head & \"/$#\"\n" % [fname, fincl]
     extflags = "--header:header$#" % fname
 
   # Run c2nim on generated file
