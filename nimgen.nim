@@ -430,7 +430,7 @@ proc runPreprocess(file, ppflags, flags: string, inline: bool): string =
 
 proc runCtags(file: string): string =
   var
-    cmd = "ctags -o - --fields=+S+K --c-kinds=p --file-scope=no " & file
+    cmd = "ctags -o - --fields=+S+K --c-kinds=+p --file-scope=no " & file
     fps = execProc(cmd)
     fdata = ""
 
