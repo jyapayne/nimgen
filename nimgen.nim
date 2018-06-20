@@ -37,6 +37,25 @@ Options:
 # ###
 # Helpers
 
+proc addEnv(str: string): string =
+  var newStr = str
+  for pair in envPairs():
+    try:
+      newStr = newStr % [pair.key, pair.value.string]
+    except ValueError:
+      discard
+
+  try:
+    newStr = newStr % ["output", gOutput]
+  except ValueError:
+    discard
+
+  # if there are still format args, print a warning
+  if newStr.contains("${"):
+    echo "WARNING: \"", newStr, "\" still contains an uninterpolated value!"
+
+  return newStr
+
 proc execProc(cmd: string): string =
   result = ""
   var
@@ -541,7 +560,7 @@ proc c2nim(fl, outfile: string, c2nimConfig: c2nimConfigObj) =
     if file.isAbsolute():
       passC &= "const header$# = \"$#\"\n" % [fname, fincl]
     else:
-      passC &= "const header$# = currentSourcePath().splitPath().head & \"/$#\"\n" % [fname, fincl]
+      passC &= "const header$# = currentSourcePath().splitPath().head & \"$#\"\n" % [fname, fincl]
     extflags = "--header:header$#" % fname
 
   # Run c2nim on generated file
@@ -595,34 +614,36 @@ proc doActions(file: string, c2nimConfig: var c2nimConfigObj, cfg: OrderedTableR
     if val == true:
       if action == "create":
         createDir(file.splitPath().head)
-        writeFile(file, cfg[act])
-      elif action in @["prepend", "append", "replace", "comment", "rename", "compile", "dynlib", "pragma", "execute"] and sfile != "":
+        writeFile(file, cfg[act].addEnv())
+      elif action in @["prepend", "append", "replace", "comment",
+                       "rename", "compile", "dynlib", "pragma",
+                       "execute"] and sfile != "":
         if action == "prepend":
           if srch != "":
-            prepend(sfile, cfg[act], cfg[srch])
+            prepend(sfile, cfg[act].addEnv(), cfg[srch].addEnv())
           else:
-            prepend(sfile, cfg[act])
+            prepend(sfile, cfg[act].addEnv())
         elif action == "append":
           if srch != "":
-            append(sfile, cfg[act], cfg[srch])
+            append(sfile, cfg[act].addEnv(), cfg[srch].addEnv())
           else:
-            append(sfile, cfg[act])
+            append(sfile, cfg[act].addEnv())
         elif action == "replace":
           if srch != "":
-            freplace(sfile, cfg[srch], cfg[act])
+            freplace(sfile, cfg[srch].addEnv(), cfg[act].addEnv())
         elif action == "comment":
           if srch != "":
-            comment(sfile, cfg[srch], cfg[act])
+            comment(sfile, cfg[srch].addEnv(), cfg[act].addEnv())
         elif action == "rename":
-          rename(sfile, cfg[act])
+          rename(sfile, cfg[act].addEnv())
         elif action == "compile":
-          c2nimConfig.compile.add(cfg[act])
+          c2nimConfig.compile.add(cfg[act].addEnv())
         elif action == "dynlib":
-          c2nimConfig.dynlib.add(cfg[act])
+          c2nimConfig.dynlib.add(cfg[act].addEnv())
         elif action == "pragma":
-          c2nimConfig.pragma.add(cfg[act])
+          c2nimConfig.pragma.add(cfg[act].addEnv())
         elif action == "execute":
-          execute(sfile, cfg[act])
+          execute(sfile, cfg[act].addEnv())
         srch = ""
       elif action == "search":
         srch = act
@@ -643,7 +664,6 @@ proc processAfter(nimFile: string, c2nimConfig: var c2nimConfigObj) =
     if nimFile.find(re(pat)).isSome():
       for key in gAfter[pattern].keys():
         let value = gAfter[pattern][key]
-        #echo key, ": ", "\"", value, "\" in ", nimFile
         afterConfig[key & "." & pattern] = value
 
   doActions(nimFile, c2nimConfig, afterConfig)
@@ -661,7 +681,7 @@ proc runFile(file: string, cfgin: OrderedTableRef) =
     if file.find(re(pat)).isSome():
       echo "Appending " & file & " " & pattern
       for key in gWildcards[pattern].keys():
-        cfg[key & "." & pattern] = gWildcards[pattern][key]
+        cfg[key & "." & pattern] = gWildcards[pattern][key].addEnv()
 
   var
     c2nimConfig = c2nimConfigObj(
@@ -690,9 +710,9 @@ proc runFile(file: string, cfgin: OrderedTableRef) =
         elif act == "noprocess":
           noprocess = true
       elif act == "flags":
-        c2nimConfig.flags = cfg[act]
+        c2nimConfig.flags = cfg[act].addEnv()
       elif act == "ppflags":
-        c2nimConfig.ppflags = cfg[act]
+        c2nimConfig.ppflags = cfg[act].addEnv()
 
     if c2nimConfig.recurse and c2nimConfig.inline:
       raise newException(Exception, "Cannot use recurse and inline simultaneously")
@@ -710,7 +730,7 @@ proc runCfg(cfg: string) =
 
   if gConfig.hasKey("n.global"):
     if gConfig["n.global"].hasKey("output"):
-      gOutput = gConfig["n.global"]["output"]
+      gOutput = gConfig["n.global"]["output"].addEnv()
       if dirExists(gOutput):
         if "-f" in commandLineParams():
           try:
@@ -726,42 +746,43 @@ proc runCfg(cfg: string) =
       createDir(gOutput)
 
     if gConfig["n.global"].hasKey("cpp_compiler"):
-      gCppCompiler = gConfig["n.global"]["cpp_compiler"]
+      gCppCompiler = gConfig["n.global"]["cpp_compiler"].addEnv()
     if gConfig["n.global"].hasKey("c_compiler"):
-      gCCompiler = gConfig["n.global"]["c_compiler"]
+      gCCompiler = gConfig["n.global"]["c_compiler"].addEnv()
 
     if gConfig["n.global"].hasKey("filter"):
-      gFilter = gConfig["n.global"]["filter"]
+      gFilter = gConfig["n.global"]["filter"].addEnv()
     if gConfig["n.global"].hasKey("quotes"):
-      if gConfig["n.global"]["quotes"] == "false":
+      if gConfig["n.global"]["quotes"].addEnv() == "false":
         gQuotes = false
 
   if gConfig.hasKey("n.include"):
     for inc in gConfig["n.include"].keys():
-      gIncludes.add(inc)
+      gIncludes.add(inc.addEnv())
 
   if gConfig.hasKey("n.exclude"):
     for excl in gConfig["n.exclude"].keys():
-      gExcludes.add(excl)
+      gExcludes.add(excl.addEnv())
 
   if gConfig.hasKey("n.prepare"):
     for prep in gConfig["n.prepare"].keys():
       let (key, val) = getKey(prep)
       if val == true:
+        let prepVal = gConfig["n.prepare"][prep].addEnv()
         if key == "download":
-          downloadUrl(gConfig["n.prepare"][prep])
+          downloadUrl(prepVal)
         elif key == "extract":
-          extractZip(gConfig["n.prepare"][prep])
+          extractZip(prepVal)
         elif key == "git":
-          gitRemotePull(gConfig["n.prepare"][prep])
+          gitRemotePull(prepVal)
         elif key == "gitremote":
-          gitRemotePull(gConfig["n.prepare"][prep], false)
+          gitRemotePull(prepVal, false)
         elif key == "gitsparse":
-          gitSparseCheckout(gConfig["n.prepare"][prep])
+          gitSparseCheckout(prepVal)
         elif key == "execute":
-          discard execProc(gConfig["n.prepare"][prep])
+          discard execProc(prepVal)
         elif key == "copy":
-          doCopy(gConfig["n.prepare"][prep])
+          doCopy(prepVal)
 
   if gConfig.hasKey("n.wildcard"):
     var wildcard = ""
@@ -769,9 +790,10 @@ proc runCfg(cfg: string) =
       let (key, val) = getKey(wild)
       if val == true:
         if key == "wildcard":
-          wildcard = gConfig["n.wildcard"][wild]
+          wildcard = gConfig["n.wildcard"][wild].addEnv()
         else:
-          gWildcards.setSectionKey(wildcard, wild, gConfig["n.wildcard"][wild])
+          gWildcards.setSectionKey(wildcard, wild,
+                                   gConfig["n.wildcard"][wild].addEnv())
 
   if gConfig.hasKey("n.after"):
     var wildcard = ""
@@ -779,9 +801,10 @@ proc runCfg(cfg: string) =
       let (key, val) = getKey(afterKey)
       if val == true:
         if key == "wildcard":
-          wildcard = gConfig["n.after"][afterKey]
+          wildcard = gConfig["n.after"][afterKey].addEnv()
         else:
-          gAfter.setSectionKey(wildcard, afterKey, gConfig["n.after"][afterKey])
+          gAfter.setSectionKey(wildcard, afterKey,
+                               gConfig["n.after"][afterKey].addEnv())
 
 
   for file in gConfig.keys():
