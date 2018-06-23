@@ -5,7 +5,7 @@ var
   gDoneAfter: seq[string] = @[]
   gDoneInline: seq[string] = @[]
 
-  gProjectDir = getCurrentDir()
+  gProjectDir = ""
   gConfig: Config
   gFilter = ""
   gQuotes = true
@@ -725,6 +725,8 @@ proc runFile(file: string, cfgin: OrderedTableRef) =
 proc runCfg(cfg: string) =
   if not fileExists(cfg):
     raise newException(Exception, "Config doesn't exist: " & cfg)
+
+  gProjectDir = parentDir(cfg)
 
   gConfig = loadConfig(cfg)
 
