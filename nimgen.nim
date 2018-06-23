@@ -135,7 +135,6 @@ proc gitSparseCheckout(plist: string) =
   let sparsefile = ".git/info/sparse-checkout"
   if fileExists(gOutput/sparsefile):
     gitReset()
-    return
 
   setCurrentDir(gOutput)
   defer: setCurrentDir(gProjectDir)
