@@ -726,7 +726,7 @@ proc runCfg(cfg: string) =
   if not fileExists(cfg):
     raise newException(Exception, "Config doesn't exist: " & cfg)
 
-  gProjectDir = parentDir(cfg)
+  gProjectDir = parentDir(cfg.expandFilename())
 
   gConfig = loadConfig(cfg)
 
