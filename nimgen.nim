@@ -814,6 +814,9 @@ proc runCfg(cfg: string) =
 
     runFile(file, gConfig[file])
 
+  # Reset files
+  gitReset()
+
 
 # ###
 # Main loop
