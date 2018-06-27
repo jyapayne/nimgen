@@ -255,11 +255,12 @@ proc prepend(file: string, data: string, search="") =
       if idx != -1:
         content = content[0..<idx] & data & content[idx..<content.len()]
 
-proc execute(file: string, command: string) =
-  withFile(file):
-    let cmd = command % ["file", file]
-    let commandResult = execProc(cmd)
-    content = commandResult
+proc pipe(file: string, command: string) =
+  let cmd = command % ["file", file]
+  let commandResult = execProc(cmd).strip()
+  if commandResult != "":
+    withFile(file):
+      content = commandResult
 
 proc append(file: string, data: string, search="") =
   withFile(file):
@@ -613,10 +614,10 @@ proc doActions(file: string, c2nimConfig: var c2nimConfigObj, cfg: OrderedTableR
     if val == true:
       if action == "create":
         createDir(file.splitPath().head)
-        writeFile(file, cfg[act].addEnv())
+        writeFile(file, cfg[act])
       elif action in @["prepend", "append", "replace", "comment",
                        "rename", "compile", "dynlib", "pragma",
-                       "execute"] and sfile != "":
+                       "pipe"] and sfile != "":
         if action == "prepend":
           if srch != "":
             prepend(sfile, cfg[act].addEnv(), cfg[srch].addEnv())
@@ -641,8 +642,8 @@ proc doActions(file: string, c2nimConfig: var c2nimConfigObj, cfg: OrderedTableR
           c2nimConfig.dynlib.add(cfg[act].addEnv())
         elif action == "pragma":
           c2nimConfig.pragma.add(cfg[act].addEnv())
-        elif action == "execute":
-          execute(sfile, cfg[act].addEnv())
+        elif action == "pipe":
+          pipe(sfile, cfg[act].addEnv())
         srch = ""
       elif action == "search":
         srch = act
