@@ -21,7 +21,7 @@ var
 type
   c2nimConfigObj = object
     flags, ppflags: string
-    recurse, inline, preprocess, ctags, defines: bool
+    recurse, inline, preprocess, ctags, defines, remove_static: bool
     dynlib, compile, pragma: seq[string]
 
 const DOC = """
@@ -82,7 +82,9 @@ proc execProc(cmd: string): string =
 proc extractZip(zipfile: string) =
   var cmd = "unzip -o $#"
   if defined(Windows):
-    cmd = "powershell -nologo -noprofile -command \"& { Add-Type -A 'System.IO.Compression.FileSystem'; [IO.Compression.ZipFile]::ExtractToDirectory('$#', '.'); }\""
+    cmd = "powershell -nologo -noprofile -command \"& { Add-Type -A " &
+          "'System.IO.Compression.FileSystem'; " &
+          "[IO.Compression.ZipFile]::ExtractToDirectory('$#', '.'); }\""
 
   setCurrentDir(gOutput)
   defer: setCurrentDir(gProjectDir)
@@ -311,6 +313,54 @@ proc comment(file: string, pattern: string, numlines: string) =
             idx += 1
             break
 
+proc removeStatic(filename: string) =
+
+  if not fileExists(filename):
+    echo "Missing file: " & filename
+    return
+
+  var
+    file = open(filename)
+    stack: seq[string] = @[]
+    foundBrace = false
+    foundStatic = false
+    writeOutput = true
+    output = newStringofCap(getFileSize(filename))
+
+  for line in file.lines():
+    var modLine = line
+
+    if not foundStatic:
+      writeOutput = true
+      if line.startswith("static inline"):
+        foundStatic = true
+        let index = modLine.find("{")
+        if index != -1:
+          foundBrace = true
+          modLine.setLen(index)
+    elif not foundBrace:
+      writeOutput = true
+      if modLine.strip().startswith("{"):
+        foundBrace = true
+        writeOutput = false
+    else:
+      if modLine.startswith("}"):
+        foundBrace = false
+        foundStatic = false
+        output[^1] = ';'
+        output &= "\n"
+
+    if writeOutput:
+      output &= modLine
+      output &= "\n"
+      writeOutput = false
+
+  file.close()
+
+  var f = open(filename, fmWrite)
+  write(f, output)
+  f.close()
+
 proc rename(file: string, renfile: string) =
   if file.splitFile().ext == ".nim":
     return
@@ -513,6 +563,9 @@ proc c2nim(fl, outfile: string, c2nimConfig: c2nimConfigObj) =
   if c2nimConfig.defines and (c2nimConfig.preprocess or c2nimConfig.ctags):
     prepend(cfile, getDefines(file, c2nimConfig.inline))
 
+  if c2nimConfig.remove_static:
+    removeStatic(cfile)
+
   var
     extflags = ""
     passC = ""
@@ -687,6 +740,7 @@ proc runFile(file: string, cfgin: OrderedTableRef) =
     c2nimConfig = c2nimConfigObj(
       flags: "--stdcall", ppflags: "",
       recurse: false, inline: false, preprocess: false, ctags: false, defines: false,
+      remove_static: false,
       dynlib: @[], compile: @[], pragma: @[]
     )
 
@@ -707,6 +761,8 @@ proc runFile(file: string, cfgin: OrderedTableRef) =
           c2nimConfig.ctags = true
         elif act == "defines":
           c2nimConfig.defines = true
+        elif act == "remove_static":
+          c2nimConfig.remove_static = true
         elif act == "noprocess":
           noprocess = true
       elif act == "flags":
