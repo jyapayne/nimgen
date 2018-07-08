@@ -79,6 +79,8 @@ _[n.global]_
 
 ```quotes``` = pick up any headers included using "" (and not <> which is typically used for standard headers) [default: true]
 
+```reset``` = whether or not to reset all files after processing [default: false]
+
 ```filter``` = string to identify and recurse into library .h files in #include statements and exclude standard headers
 
 ```cpp_compiler``` = string to specify a CPP compiler executable. [default: g++]

@@ -9,6 +9,7 @@ var
   gConfig: Config
   gFilter = ""
   gQuotes = true
+  gReset = false
   gCppCompiler = "g++"
   gCCompiler = "gcc"
   gOutput = ""
@@ -822,6 +823,10 @@ proc runCfg(cfg: string) =
       if gConfig["n.global"]["quotes"] == "false":
         gQuotes = false
 
+    if gConfig["n.global"].hasKey("reset"):
+      if gConfig["n.global"]["reset"] == "true":
+        gReset = true
+
   if gConfig.hasKey("n.include"):
     for inc in gConfig["n.include"].keys():
       gIncludes.add(inc.addEnv())
@@ -878,8 +883,9 @@ proc runCfg(cfg: string) =
 
     runFile(file, gConfig[file])
 
-  # Reset files
-  gitReset()
+  if gReset:
+    # Reset files
+    gitReset()
 
 
 # ###
