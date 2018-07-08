@@ -888,15 +888,21 @@ proc runCfg(cfg: string) =
                                gConfig["n.after"][afterKey])
 
   for file in gConfig.keys():
-    if file in @["n.global", "n.include", "n.exclude", "n.prepare", "n.wildcard", "n.after"]:
+    if file in @["n.global", "n.include", "n.exclude",
+                 "n.prepare", "n.wildcard", "n.after", "n.post"]:
       continue
 
     runFile(file, gConfig[file])
 
-  if gReset:
-    # Reset files
-    gitReset()
-
+  if gConfig.hasKey("n.post"):
+    for post in gConfig["n.post"].keys():
+      let (key, val) = getKey(post)
+      if val == true:
+        let postVal = gConfig["n.post"][post]
+        if key == "reset":
+          gitReset()
+        elif key == "execute":
+          discard execProc(postVal)
 
 # ###
 # Main loop
