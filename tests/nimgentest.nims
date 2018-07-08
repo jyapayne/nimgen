@@ -4,8 +4,12 @@ import strutils
 
 var
   full = false
-  comps = @["libsvm", "nim7z", "nimarchive", "nimbass", "nimbigwig", "nimfuzz",
-            "nimpcre", "nimrax", "nimssl", "nimssh2"]
+  comps = @[
+    "genotrance/libsvm", "genotrance/nim7z", "genotrance/nimarchive",
+    "genotrance/nimbass", "genotrance/nimbigwig", "genotrance/nimfuzz",
+    "genotrance/nimpcre", "genotrance/nimrax", "genotrance/nimssl",
+    "genotrance/nimssh2", "jyapayne/nim-libnx"
+  ]
 
 if detectOs(Windows):
   comps.add("nimkerberos")
@@ -20,7 +24,7 @@ if paramCount() > 2:
 for comp in comps:
   if not dirExists(".."/comp):
     withDir(".."):
-      exec "git clone --depth=1 https://github.com/genotrance/" & comp
+      exec "git clone --depth=1 https://github.com/" & comp
 
   exec "nimble uninstall -y " & comp, "", ""
   withDir(".."/comp):
