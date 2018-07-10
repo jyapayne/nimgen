@@ -323,52 +323,11 @@ proc comment(file: string, pattern: string, numlines: string) =
             break
 
 proc removeStatic(filename: string) =
-
-  if not fileExists(filename):
-    echo "Missing file: " & filename
-    return
-
-  var
-    file = open(filename)
-    stack: seq[string] = @[]
-    foundBrace = false
-    foundStatic = false
-    writeOutput = true
-    output = newStringofCap(getFileSize(filename))
-
-  for line in file.lines():
-    var modLine = line
-
-    if not foundStatic:
-      writeOutput = true
-      if line.startswith("static inline"):
-        foundStatic = true
-        let index = modLine.find("{")
-        if index != -1:
-          foundBrace = true
-          modLine.setLen(index)
-    elif not foundBrace:
-      writeOutput = true
-      if modLine.strip().startswith("{"):
-        foundBrace = true
-        writeOutput = false
-    else:
-      if modLine.startswith("}"):
-        foundBrace = false
-        foundStatic = false
-        output[^1] = ';'
-        output &= "\n"
-
-    if writeOutput:
-      output &= modLine
-      output &= "\n"
-      writeOutput = false
-
-  file.close()
-
-  var f = open(filename, fmWrite)
-  write(f, output)
-  f.close()
+  ## Replace static function bodies with a semicolon
+  withFile(filename):
+    content = content.replace(
+      re"(?m)(static inline.*?\))(\s*\{(\s*?.*?$)*[\n\r]\})", "$1;"
+    )
 
 proc rename(file: string, renfile: string) =
   if file.splitFile().ext == ".nim":
