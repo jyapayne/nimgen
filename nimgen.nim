@@ -22,7 +22,7 @@ var
 type
   c2nimConfigObj = object
     flags, ppflags: string
-    recurse, inline, preprocess, ctags, defines, remove_static: bool
+    recurse, inline, preprocess, ctags, defines, removeStatic: bool
     dynlib, compile, pragma: seq[string]
 
 const DOC = """
@@ -124,6 +124,16 @@ proc gitReset() =
   defer: setCurrentDir(gProjectDir)
 
   discard execProc("git reset --hard HEAD")
+
+proc gitCheckout(filename: string) =
+  echo "Resetting file: $#" % [filename]
+
+  setCurrentDir(gOutput)
+  defer: setCurrentDir(gProjectDir)
+
+  let adjustedFile = filename.replace(gOutput & $DirSep, "")
+
+  discard execProc("git checkout $#" % [adjustedFile])
 
 proc gitRemotePull(url: string, pull=true) =
   if dirExists(gOutput/".git"):
@@ -531,7 +541,7 @@ proc c2nim(fl, outfile: string, c2nimConfig: c2nimConfigObj) =
   if c2nimConfig.defines and (c2nimConfig.preprocess or c2nimConfig.ctags):
     prepend(cfile, getDefines(file, c2nimConfig.inline))
 
-  if c2nimConfig.remove_static:
+  if c2nimConfig.removeStatic:
     removeStatic(cfile)
 
   var
@@ -646,6 +656,9 @@ proc doActions(file: string, c2nimConfig: var c2nimConfigObj, cfg: OrderedTableR
       if action == "create":
         createDir(file.splitPath().head)
         writeFile(file, cfg[act])
+      elif action == "removestatic":
+        removeStatic(sfile)
+        c2nimConfig.removeStatic = true
       elif action in @["prepend", "append", "replace", "comment",
                        "rename", "compile", "dynlib", "pragma",
                        "pipe"] and sfile != "":
@@ -728,25 +741,25 @@ proc runFile(file: string, cfgin: OrderedTableRef) =
     var noprocess = false
 
     for act in cfg.keys():
-      if cfg[act] == "true":
-        if act == "recurse":
-          c2nimConfig.recurse = true
-        elif act == "inline":
-          c2nimConfig.inline = true
-        elif act == "preprocess":
-          c2nimConfig.preprocess = true
-        elif act == "ctags":
-          c2nimConfig.ctags = true
-        elif act == "defines":
-          c2nimConfig.defines = true
-        elif act == "remove_static":
-          c2nimConfig.remove_static = true
-        elif act == "noprocess":
-          noprocess = true
-      elif act == "flags":
-        c2nimConfig.flags = cfg[act]
-      elif act == "ppflags":
-        c2nimConfig.ppflags = cfg[act]
+      let (action, val) = getKey(act)
+      if val == true:
+        if cfg[act] == "true":
+          if action == "recurse":
+            c2nimConfig.recurse = true
+          elif action == "inline":
+            c2nimConfig.inline = true
+          elif action == "preprocess":
+            c2nimConfig.preprocess = true
+          elif action == "ctags":
+            c2nimConfig.ctags = true
+          elif action == "defines":
+            c2nimConfig.defines = true
+          elif action == "noprocess":
+            noprocess = true
+        elif action == "flags":
+          c2nimConfig.flags = cfg[act]
+        elif action == "ppflags":
+          c2nimConfig.ppflags = cfg[act]
 
     if c2nimConfig.recurse and c2nimConfig.inline:
       raise newException(Exception, "Cannot use recurse and inline simultaneously")
@@ -755,6 +768,9 @@ proc runFile(file: string, cfgin: OrderedTableRef) =
       c2nim(file, nimFile, c2nimConfig)
 
       processAfter(nimFile, c2nimConfig)
+
+    if c2nimConfig.removeStatic:
+      gitCheckout(sfile)
 
 proc runCfg(cfg: string) =
   if not fileExists(cfg):
