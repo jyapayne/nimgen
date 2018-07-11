@@ -22,7 +22,7 @@ var
 type
   c2nimConfigObj = object
     flags, ppflags: string
-    recurse, inline, preprocess, ctags, defines, removeStatic: bool
+    recurse, inline, preprocess, ctags, defines: bool
     dynlib, compile, pragma: seq[string]
 
 const DOC = """
@@ -125,7 +125,7 @@ proc gitReset() =
 
   discard execProc("git reset --hard HEAD")
 
-proc gitCheckout(filename: string) =
+proc gitCheckout(filename: string) {.used.} =
   echo "Resetting file: $#" % [filename]
 
   setCurrentDir(gOutput)
@@ -333,10 +333,33 @@ proc comment(file: string, pattern: string, numlines: string) =
             break
 
 proc removeStatic(filename: string) =
-  ## Replace static function bodies with a semicolon
+  ## Replace static function bodies with a semicolon and commented
+  ## out body
   withFile(filename):
     content = content.replace(
-      re"(?m)(static inline.*?\))(\s*\{(\s*?.*?$)*[\n\r]\})", "$1;"
+      re"(?m)(static inline.*?\))(\s*\{(\s*?.*?$)*[\n\r]\})",
+      proc (match: RegexMatch): string =
+        let funcDecl = match.captures[0]
+        let body = match.captures[1].strip()
+        result = ""
+
+        result.add("$#;" % [funcDecl])
+        result.add(body.replace(re"(?m)^", "//"))
+    )
+
+proc reAddStatic(filename: string) =
+  ## Uncomment out the body and remove the semicolon. Undoes
+  ## removeStatic
+  withFile(filename):
+    content = content.replace(
+      re"(?m)(static inline.*?\));(\/\/\s*\{(\s*?.*?$)*[\n\r]\/\/\})",
+      proc (match: RegexMatch): string =
+        let funcDecl = match.captures[0]
+        let body = match.captures[1].strip()
+        result = ""
+
+        result.add("$# " % [funcDecl])
+        result.add(body.replace(re"(?m)^\/\/", ""))
     )
 
 proc rename(file: string, renfile: string) =
@@ -541,9 +564,6 @@ proc c2nim(fl, outfile: string, c2nimConfig: c2nimConfigObj) =
   if c2nimConfig.defines and (c2nimConfig.preprocess or c2nimConfig.ctags):
     prepend(cfile, getDefines(file, c2nimConfig.inline))
 
-  if c2nimConfig.removeStatic:
-    removeStatic(cfile)
-
   var
     extflags = ""
     passC = ""
@@ -656,9 +676,6 @@ proc doActions(file: string, c2nimConfig: var c2nimConfigObj, cfg: OrderedTableR
       if action == "create":
         createDir(file.splitPath().head)
         writeFile(file, cfg[act])
-      elif action == "removestatic":
-        removeStatic(sfile)
-        c2nimConfig.removeStatic = true
       elif action in @["prepend", "append", "replace", "comment",
                        "rename", "compile", "dynlib", "pragma",
                        "pipe"] and sfile != "":
@@ -731,7 +748,6 @@ proc runFile(file: string, cfgin: OrderedTableRef) =
     c2nimConfig = c2nimConfigObj(
       flags: "--stdcall", ppflags: "",
       recurse: false, inline: false, preprocess: false, ctags: false, defines: false,
-      remove_static: false,
       dynlib: @[], compile: @[], pragma: @[]
     )
 
@@ -762,15 +778,20 @@ proc runFile(file: string, cfgin: OrderedTableRef) =
           c2nimConfig.ppflags = cfg[act]
 
     if c2nimConfig.recurse and c2nimConfig.inline:
-      raise newException(Exception, "Cannot use recurse and inline simultaneously")
+      echo "Cannot use recurse and inline simultaneously"
+      quit(1)
+
+    # Remove static inline function bodies
+    removeStatic(sfile)
+
     if not noprocess:
       let nimFile = getNimout(sfile)
       c2nim(file, nimFile, c2nimConfig)
 
       processAfter(nimFile, c2nimConfig)
 
-    if c2nimConfig.removeStatic:
-      gitCheckout(sfile)
+    # Add them back for compilation
+    reAddStatic(sfile)
 
 proc runCfg(cfg: string) =
   if not fileExists(cfg):
