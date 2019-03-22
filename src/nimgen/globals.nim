@@ -32,7 +32,7 @@ var
 type
   c2nimConfigObj* = object
     flags*, ppflags*: string
-    recurse*, inline*, preprocess*, ctags*, defines*: bool
+    recurse*, inline*, preprocess*, removeBodies*, ctags*, defines*: bool
     dynlib*, compile*, pragma*: seq[string]
 
 const gDoc* = """

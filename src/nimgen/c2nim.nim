@@ -28,6 +28,9 @@ proc c2nim*(fl, outfile: string, c2nimConfig: c2nimConfigObj) =
     cfile = "temp-$#.c" % [outfile.extractFilename()]
     writeFileFlush(cfile, runCtags(file))
 
+  if c2nimConfig.removeBodies:
+    removeBodies(cfile)
+
   if c2nimConfig.defines and (c2nimConfig.preprocess or c2nimConfig.ctags):
     prepend(cfile, getDefines(file, c2nimConfig.inline))
 
@@ -103,6 +106,8 @@ proc c2nim*(fl, outfile: string, c2nimConfig: c2nimConfigObj) =
     except:
       discard
   else:
+    if c2nimConfig.removeBodies:
+      reAddBodies(cfile)
     reAddStatic(cfile)
 
   # Nim doesn't like {.cdecl.} for type proc()

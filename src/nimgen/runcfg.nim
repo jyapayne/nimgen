@@ -130,6 +130,8 @@ proc runFile*(file: string, cfgin: OrderedTableRef = newOrderedTable[string, str
             c2nimConfig.inline = true
           elif action == "preprocess":
             c2nimConfig.preprocess = true
+          elif action == "removeBodies":
+            c2nimConfig.removeBodies = true
           elif action == "ctags":
             c2nimConfig.ctags = true
           elif action == "defines":

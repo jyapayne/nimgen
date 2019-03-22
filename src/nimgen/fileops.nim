@@ -91,6 +91,36 @@ proc removeStatic*(filename: string) =
         result.add(body.replace(re"(?m)^(.*\n?)", "//$1"))
     )
 
+proc removeBodies*(filename: string) =
+  ## Replace function bodies with a semicolon and commented
+  ## out body
+  withFile(filename):
+    content = content.replace(
+      re"(?m)(.*?\))(\s*\{(\s*?.*?$)*?[\n\r]\})",
+      proc (m: RegexMatch, s: string): string =
+        let funcDecl = s[m.group(0)[0]]
+        let body = s[m.group(1)[0]].strip()
+        result = ""
+
+        result.add("$#;" % [funcDecl])
+        result.add(body.replace(re"(?m)^(.*\n?)", "//$1"))
+    )
+
+proc reAddBodies*(filename: string) =
+  ## Uncomment out the body and remove the semicolon. Undoes
+  ## removeBodies
+  withFile(filename):
+    content = content.replace(
+      re"(?m)(.*?\))(\s*\{(\s*?.*?$)*?[\n\r]\})",
+      proc (m: RegexMatch, s: string): string =
+        let funcDecl = s[m.group(0)[0]]
+        let body = s[m.group(1)[0]].strip()
+        result = ""
+
+        result.add("$# " % [funcDecl])
+        result.add(body.replace(re"(?m)^\/\/(.*\n?)", "$1"))
+    )
+
 proc reAddStatic*(filename: string) =
   ## Uncomment out the body and remove the semicolon. Undoes
   ## removeStatic
