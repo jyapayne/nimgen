@@ -31,6 +31,7 @@ proc c2nim*(fl, outfile: string, c2nimConfig: c2nimConfigObj) =
   if c2nimConfig.defines and (c2nimConfig.preprocess or c2nimConfig.ctags):
     prepend(cfile, getDefines(file, c2nimConfig.inline))
 
+  removeStatic(cfile)
   var
     extflags = ""
     passC = ""
@@ -101,6 +102,8 @@ proc c2nim*(fl, outfile: string, c2nimConfig: c2nimConfigObj) =
       removeFile(cfile)
     except:
       discard
+  else:
+    reAddStatic(cfile)
 
   # Nim doesn't like {.cdecl.} for type proc()
   freplace(outfile, re"(?m)(.*? = proc.*?)\{.cdecl.\}", "$1")
